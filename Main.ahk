@@ -4,6 +4,7 @@
 #Include "%A_ScriptDir%\Modules"
 #include Movement.ahk
 #include PixelSearchStuff.ahk
+#Include CameraAngle.ahk
 #Include <OCR>
 #Include <Pin>
 #include reconnect.ahk
@@ -48,6 +49,8 @@ RunRaidStart() {
     Movetoraidzone()
 
     if DetectRoom10Text() {
+        updateStatus("Clicking Blue Start Raid button")
+        activateRoblox()
         SendEvent "{Click 350, 443}"
     }
     else {
@@ -63,29 +66,35 @@ RunRaidStart() {
     RunAutoRaid()
 }
 
+f5::RunAutoRaid()
+
 RunAutoRaid() {
     global RaidRunning, Room3BossCheckbox, Room9BossCheckbox
 
     UpdateStatus("Auto raid: pressing Q")
     SendEvent "{q}"
-    Sleep 1000
+    Sleep 2000
 
     UpdateStatus("Auto raid: moving forward (1s)")
-    moveDirection("w", 1000)
+    Sleep 1000
+    moveDirection("w", 300)
+    Sleep 1000
+    moveDirection("w", 600)
+    Sleep 1000
 
     UpdateStatus("Auto raid: waiting for room unlock...")
     WaitForRoomUnlock()
     Sleep 1000
 
     UpdateStatus("Auto raid: moving forward (1.5s)")
-    moveDirection("w", 1500)
+    moveDirection("w", 1450)
 
     UpdateStatus("Auto raid: waiting for room unlock...")
     WaitForRoomUnlock()
     Sleep 1000
 
     UpdateStatus("Auto raid: moving forward (2s)")
-    moveDirection("w", 2000)
+    moveDirection("w", 1950)
     Sleep 1500
 
     if (Room3BossCheckbox.Value) {
@@ -290,12 +299,14 @@ StartRaidLoop() {
 }
 
 updateStatus(message, addToLog := true) {
-    global statusLabel
+    global statusLabel, statusDetailLabel
     defaultTitle := (message = "") ? "Roblox" : "Roblox: "
     try WinSetTitle(defaultTitle message, "ahk_exe RobloxPlayerBeta.exe")
     try {
         if statusLabel
-            statusLabel.Value := (message = "" ? "Idle" : message)
+            statusLabel.Value := "• " (message = "" ? "Idle" : message)
+        if statusDetailLabel
+            statusDetailLabel.Value := ">>> " (message = "" ? "READY" : StrUpper(message))
     }
 }
 
@@ -321,6 +332,7 @@ resizeRobloxWindow() {
     WinRestore windowHandle
     WinMove , , A_ScreenWidth, 600, windowHandle
     WinMove , , 800, 600, windowHandle 
+    try PositionAuxiliaryGuis()
     updateStatus("")
 }
 
@@ -353,7 +365,7 @@ waitForNonWhiteScreen() {
     return false
 }
 
-global ROOM_10_REGEX := "Who can join"
+global ROOM_10_REGEX := "create\s*ra[i1]d"
 
 DetectRoom10Text() {
     global ROOM_10_REGEX
