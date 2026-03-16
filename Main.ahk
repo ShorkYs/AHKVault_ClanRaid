@@ -12,6 +12,9 @@ WHITE_TRANSITION_SCREEN := {x: 689, y: 101,  colour: "0x070711 "}
 
 global RaidRunning := false
 global LastDetectedRoom := ""
+global CurrentRoomCenter := false
+global RAID_ROOM_BORDER_COLOR := 0xFFFFFF
+global RAID_ROOM_BORDER_VARIATION := 35
 
 f1::{
     StartEntireRaidMacro()
@@ -64,105 +67,208 @@ RunRaidStart() {
 }
 
 RunAutoRaid() {
-    global RaidRunning, Room3BossCheckbox, Room9BossCheckbox
+    global RaidRunning, CurrentRoomCenter
 
     UpdateStatus("Auto raid: pressing Q")
     SendEvent "{q}"
     Sleep 1000
 
-    UpdateStatus("Auto raid: moving forward (1s)")
-    moveDirection("w", 1000)
+    UpdateStatus("Auto raid: entering room flow")
+    moveDirection("w", 1200)
+    Sleep 300
 
-    UpdateStatus("Auto raid: waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+    loop 12 {
+        if !RaidRunning
+            return
 
-    UpdateStatus("Auto raid: moving forward (1.5s)")
-    moveDirection("w", 1500)
+        center := DetectCurrentRoomCenter()
+        if center {
+            CurrentRoomCenter := center
+            UpdateStatus("Room center detected at " center.x "," center.y)
+            SweepCurrentRoomFromCenter(center)
+        } else {
+            UpdateStatus("Room border not detected, using fallback sweep")
+            FallbackRoomSweep()
+        }
 
-    UpdateStatus("Auto raid: waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+        UpdateStatus("Waiting for room unlock...")
+        unlockedRoom := WaitForRoomUnlock()
+        if !unlockedRoom {
+            UpdateStatus("No unlock detected, exiting auto raid loop")
+            break
+        }
 
-    UpdateStatus("Auto raid: moving forward (2s)")
-    moveDirection("w", 2000)
-    Sleep 1500
+        UpdateStatus("Unlocked room " unlockedRoom)
+        if (unlockedRoom = "10")
+            break
 
-    if (Room3BossCheckbox.Value) {
-        UpdateStatus("Room 3 Boss: waiting for room 4 unlock...")
-        WaitForSpecificRoom("4")
-    }
-
-    if (Room3BossCheckbox.Value) {
-        UpdateStatus("Room 3 Boss: starting sequence")
-        moveDirection("S", 100)
-        Sleep 150
-        moveDirection("d", 750)
-        Sleep 150
-        moveDirection("w", 500)
-        Sleep 150
-        SendEvent "{Click 363, 382}"
-        Sleep 150
-        moveDirection("s", 200)
-        Sleep 150
-        moveDirection("a", 3000)
-        Sleep 150
-        SendEvent "{e}"
-        Sleep 150
-        moveDirection("a", 2500)
-        Sleep 2000
-        moveDirection("d", 3500)
-        UpdateStatus("Room 3 Boss: sequence done")
-    }
-
-    UpdateStatus("Moving forward (2.5s)...")
-    moveDirection("w", 1500)
-    Sleep 150
-    moveDirection("a", 100)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
-
-    UpdateStatus("Moving forward (2s + D 200ms)...")
-    moveDirection("w", 2000)
-    Sleep 150
-    moveDirection("d", 200)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
-
-    UpdateStatus("Moving (A 250ms, W 3.25s)...")
-    moveDirection("a", 250)
-    Sleep 150
-    moveDirection("w", 2250)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
-
-    UpdateStatus("Moving forward (2s + D 200ms)...")
-    moveDirection("w", 2000)
-    Sleep 150
-    moveDirection("d", 200)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
-
-    UpdateStatus("Moving (A 250ms, W 3.25s)...")
-    moveDirection("a", 250)
-    Sleep 150
-    moveDirection("w", 3250)
-
-    if (Room9BossCheckbox.Value) {
-        UpdateStatus("Room 9 Boss: starting sequence")
-        moveDirection("s", 150)
-        Sleep 150
-        moveDirection("d", 300)
-        Sleep 150
-        SendEvent "{Click 431, 276}"
-        UpdateStatus("Room 9 Boss: sequence done")
+        ProceedToNextRoomFromCenter()
+        Sleep 400
     }
 
     UpdateStatus("Auto raid movement complete, monitoring...")
+}
+
+SweepCurrentRoomFromCenter(center) {
+    global RaidRunning
+
+    routes := [
+        {key: "w",  ms: 850},
+        {key: "d",  ms: 850},
+        {key: "s",  ms: 850},
+        {key: "a",  ms: 850},
+        {key: "wd", ms: 900},
+        {key: "sd", ms: 900},
+        {key: "sa", ms: 900},
+        {key: "wa", ms: 900}
+    ]
+
+    for _, route in routes {
+        if !RaidRunning
+            return
+
+        returnPath := []
+        MoveAndRememberStep(route, &returnPath)
+        Sleep 100
+        ReturnByPath(returnPath)
+        Sleep 120
+    }
+}
+
+FallbackRoomSweep() {
+    global RaidRunning
+
+    fallbackRoutes := [
+        {key: "w", ms: 700},
+        {key: "d", ms: 650},
+        {key: "s", ms: 700},
+        {key: "a", ms: 650}
+    ]
+
+    for _, route in fallbackRoutes {
+        if !RaidRunning
+            return
+
+        returnPath := []
+        MoveAndRememberStep(route, &returnPath)
+        Sleep 80
+        ReturnByPath(returnPath)
+        Sleep 100
+    }
+}
+
+MoveAndRememberStep(step, &returnPath) {
+    moveDirection(step.key, step.ms)
+    returnPath.Push({key: InverseMoveKey(step.key), ms: step.ms})
+}
+
+ReturnByPath(returnPath) {
+    Loop returnPath.Length {
+        i := returnPath.Length - A_Index + 1
+        step := returnPath[i]
+        moveDirection(step.key, step.ms)
+    }
+}
+
+InverseMoveKey(keyString) {
+    inverse := ""
+    for key in StrSplit(keyString) {
+        switch key {
+            case "w": inverse .= "s"
+            case "s": inverse .= "w"
+            case "a": inverse .= "d"
+            case "d": inverse .= "a"
+            default: inverse .= key
+        }
+    }
+    return inverse
+}
+
+ProceedToNextRoomFromCenter() {
+    moveDirection("w", 1450)
+}
+
+DetectCurrentRoomCenter() {
+    global RAID_ROOM_BORDER_COLOR, RAID_ROOM_BORDER_VARIATION
+
+    rect := GetRobloxClientRect()
+    if !rect
+        return false
+
+    left := rect.x + 85
+    right := rect.x + rect.w - 45
+    top := rect.y + 45
+    bottom := rect.y + rect.h - 95
+
+    minX := 99999
+    maxX := -1
+    minY := 99999
+    maxY := -1
+    found := false
+
+    rowSamples := 28
+    Loop rowSamples {
+        y := top + Floor((A_Index - 1) * (bottom - top) / (rowSamples - 1))
+
+        if PixelSearch(&x1, &y1, left, y, right, y, RAID_ROOM_BORDER_COLOR, RAID_ROOM_BORDER_VARIATION) {
+            found := true
+            minX := Min(minX, x1)
+            maxX := Max(maxX, x1)
+            minY := Min(minY, y)
+            maxY := Max(maxY, y)
+        }
+
+        if PixelSearch(&x2, &y2, right, y, left, y, RAID_ROOM_BORDER_COLOR, RAID_ROOM_BORDER_VARIATION) {
+            found := true
+            minX := Min(minX, x2)
+            maxX := Max(maxX, x2)
+            minY := Min(minY, y)
+            maxY := Max(maxY, y)
+        }
+    }
+
+    colSamples := 18
+    Loop colSamples {
+        x := left + Floor((A_Index - 1) * (right - left) / (colSamples - 1))
+
+        if PixelSearch(&x3, &y3, x, top, x, bottom, RAID_ROOM_BORDER_COLOR, RAID_ROOM_BORDER_VARIATION) {
+            found := true
+            minX := Min(minX, x)
+            maxX := Max(maxX, x)
+            minY := Min(minY, y3)
+            maxY := Max(maxY, y3)
+        }
+
+        if PixelSearch(&x4, &y4, x, bottom, x, top, RAID_ROOM_BORDER_COLOR, RAID_ROOM_BORDER_VARIATION) {
+            found := true
+            minX := Min(minX, x)
+            maxX := Max(maxX, x)
+            minY := Min(minY, y4)
+            maxY := Max(maxY, y4)
+        }
+    }
+
+    if !found
+        return false
+
+    return {
+        x: Round((minX + maxX) / 2),
+        y: Round((minY + maxY) / 2),
+        minX: minX,
+        maxX: maxX,
+        minY: minY,
+        maxY: maxY
+    }
+}
+
+GetRobloxClientRect() {
+    hwnd := WinExist("ahk_exe RobloxPlayerBeta.exe")
+    if !hwnd
+        return false
+
+    x := 0, y := 0, w := 0, h := 0
+    WinGetPos(&x, &y, &w, &h, "ahk_id " hwnd)
+    return {x: x, y: y, w: w, h: h}
 }
 
 WaitForDrasticColorChange(threshold := 30, maxSeconds := 60, sensitivity := 40) {
@@ -237,11 +343,14 @@ WaitForRoomUnlock() {
     global RaidRunning
     loop 400 {
         if !RaidRunning
-            return
-        if DetectUnlockedRoomPopup()
-            return
+            return false
+        foundRoom := DetectUnlockedRoomPopup()
+        if foundRoom
+            return foundRoom
         Sleep 300
     }
+
+    return false
 }
 
 WaitForSpecificRoom(targetRoom) {
