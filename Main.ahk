@@ -399,12 +399,20 @@ StartRaidLoop() {
 }
 
 updateStatus(message, addToLog := true) {
-    global statusLabel
+    global statusLabel, statusHudMain, statusHudLog
     defaultTitle := (message = "") ? "Roblox" : "Roblox: "
     try WinSetTitle(defaultTitle message, "ahk_exe RobloxPlayerBeta.exe")
     try {
         if statusLabel
             statusLabel.Value := (message = "" ? "Idle" : message)
+        if statusHudMain
+            statusHudMain.Value := "• " (message = "" ? "Idle" : message)
+        if statusHudLog {
+            msg := (message = "" ? "Idle" : message)
+            if (StrLen(msg) > 28)
+                msg := SubStr(msg, 1, 25) "..."
+            statusHudLog.Value := ">>> " msg
+        }
     }
 }
 
