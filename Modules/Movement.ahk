@@ -26,7 +26,7 @@ Movetoevent(){
     Sleep 250
     SendEvent "{click 22, 167}"
     Sleep 4000
-        SendEvent "{click 101, 151}"
+    SendEvent "{click 101, 151}"
     Sleep 250
     SendEvent "{click 22, 167}"
     Sleep 4000

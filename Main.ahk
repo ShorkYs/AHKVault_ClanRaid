@@ -4,6 +4,7 @@
 #Include "%A_ScriptDir%\Modules"
 #include Movement.ahk
 #include PixelSearchStuff.ahk
+#Include CameraAngle.ahk
 #Include <OCR>
 #Include <Pin>
 #include reconnect.ahk
@@ -48,6 +49,8 @@ RunRaidStart() {
     Movetoraidzone()
 
     if DetectRoom10Text() {
+        updateStatus("Clicking Blue Start Raid button")
+        activateRoblox()
         SendEvent "{Click 350, 443}"
     }
     else {
@@ -63,29 +66,35 @@ RunRaidStart() {
     RunAutoRaid()
 }
 
+f5::RunAutoRaid()
+
 RunAutoRaid() {
     global RaidRunning, Room3BossCheckbox, Room9BossCheckbox
 
     UpdateStatus("Auto raid: pressing Q")
     SendEvent "{q}"
-    Sleep 1000
+    Sleep 2000
 
     UpdateStatus("Auto raid: moving forward (1s)")
-    moveDirection("w", 1000)
+    Sleep 1000
+    moveDirection("w", 300)
+    Sleep 1000
+    moveDirection("w", 600)
+    Sleep 1000
 
     UpdateStatus("Auto raid: waiting for room unlock...")
     WaitForRoomUnlock()
     Sleep 1000
 
     UpdateStatus("Auto raid: moving forward (1.5s)")
-    moveDirection("w", 1500)
+    moveDirection("w", 1450)
 
     UpdateStatus("Auto raid: waiting for room unlock...")
     WaitForRoomUnlock()
     Sleep 1000
 
     UpdateStatus("Auto raid: moving forward (2s)")
-    moveDirection("w", 2000)
+    moveDirection("w", 1950)
     Sleep 1500
 
     if (Room3BossCheckbox.Value) {
@@ -356,7 +365,7 @@ waitForNonWhiteScreen() {
     return false
 }
 
-global ROOM_10_REGEX := "Who can join"
+global ROOM_10_REGEX := "create\s*ra[i1]d"
 
 DetectRoom10Text() {
     global ROOM_10_REGEX
