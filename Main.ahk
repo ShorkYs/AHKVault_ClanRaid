@@ -290,12 +290,14 @@ StartRaidLoop() {
 }
 
 updateStatus(message, addToLog := true) {
-    global statusLabel
+    global statusLabel, statusDetailLabel
     defaultTitle := (message = "") ? "Roblox" : "Roblox: "
     try WinSetTitle(defaultTitle message, "ahk_exe RobloxPlayerBeta.exe")
     try {
         if statusLabel
-            statusLabel.Value := (message = "" ? "Idle" : message)
+            statusLabel.Value := "• " (message = "" ? "Idle" : message)
+        if statusDetailLabel
+            statusDetailLabel.Value := ">>> " (message = "" ? "READY" : StrUpper(message))
     }
 }
 
@@ -321,6 +323,7 @@ resizeRobloxWindow() {
     WinRestore windowHandle
     WinMove , , A_ScreenWidth, 600, windowHandle
     WinMove , , 800, 600, windowHandle 
+    try PositionAuxiliaryGuis()
     updateStatus("")
 }
 
