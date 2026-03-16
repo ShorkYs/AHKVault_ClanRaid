@@ -45,6 +45,7 @@ global statusLabel           := ""
 global statusDetailLabel     := ""
 global instructionsInput     := ""
 global keybindInput          := ""
+global InstructionsGuiShown  := false
 
 CreateRaidGui()
 CreateInstructionsGui()
@@ -134,6 +135,7 @@ CreateInstructionsGui() {
     global InstructionsGui, instructionsInput, keybindInput
 
     InstructionsGui := Gui("+AlwaysOnTop +ToolWindow", "Instructions / Keybinds")
+    InstructionsGui.OnEvent("Close", HideInstructionsGui)
     InstructionsGui.BackColor := SubStr(COLORS.bg, 3)
     InstructionsGui.MarginX := 10
     InstructionsGui.MarginY := 10
@@ -179,27 +181,36 @@ CreateStatusGui() {
 }
 
 ToggleInstructionsGui(*) {
-    global InstructionsGui
+    global InstructionsGui, InstructionsGuiShown
 
     if !InstructionsGui
         return
 
-    if InstructionsGui.Visible
+    if InstructionsGuiShown {
         InstructionsGui.Hide()
+        InstructionsGuiShown := false
+    }
     else {
         InstructionsGui.Show("NoActivate")
+        InstructionsGuiShown := true
         PositionAuxiliaryGuis()
     }
 }
 
+HideInstructionsGui(guiObj, *) {
+    global InstructionsGuiShown
+    guiObj.Hide()
+    InstructionsGuiShown := false
+}
+
 PositionAuxiliaryGuis(*) {
-    global RaidGui, InstructionsGui, StatusGui
+    global RaidGui, InstructionsGui, StatusGui, InstructionsGuiShown
 
     robloxHwnd := WinExist("ahk_exe RobloxPlayerBeta.exe")
     if !robloxHwnd {
         if RaidGui
             RaidGui.Show("x10 y10 NoActivate")
-        if InstructionsGui && InstructionsGui.Visible
+        if InstructionsGui && InstructionsGuiShown
             InstructionsGui.Show("x10 y458 NoActivate")
         if StatusGui
             StatusGui.Show("x10 y10 NoActivate")
@@ -219,7 +230,7 @@ PositionAuxiliaryGuis(*) {
     if RaidGui
         RaidGui.Show("x" startX " y" startY " NoActivate")
 
-    if InstructionsGui && InstructionsGui.Visible
+    if InstructionsGui && InstructionsGuiShown
         InstructionsGui.Show("x" startX " y" (startY + raidH + 8) " NoActivate")
 
     if StatusGui
