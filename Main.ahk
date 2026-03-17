@@ -64,105 +64,165 @@ RunRaidStart() {
 }
 
 RunAutoRaid() {
-    global RaidRunning, Room3BossCheckbox, Room9BossCheckbox
+    global RaidRunning
 
-    UpdateStatus("Auto raid: pressing Q")
-    SendEvent "{q}"
-    Sleep 1000
+    UpdateStatus("Auto raid: entering room center")
+    moveDirection("w", 950)
+    Sleep 120
 
-    UpdateStatus("Auto raid: moving forward (1s)")
-    moveDirection("w", 1000)
+    currentRoom := 1
+    while (RaidRunning && currentRoom < 10) {
+        targetRoom := currentRoom + 1
+        UpdateStatus("Room " currentRoom ": clearing for room " targetRoom " unlock")
 
-    UpdateStatus("Auto raid: waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+        path := []
+        posX := 0
+        posY := 0
 
-    UpdateStatus("Auto raid: moving forward (1.5s)")
-    moveDirection("w", 1500)
+        unlocked := ClearRoomAndTrackPath(targetRoom, &path, &posX, &posY)
+        if !RaidRunning
+            return
 
-    UpdateStatus("Auto raid: waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+        if unlocked {
+            UpdateStatus("Room " targetRoom " unlocked, returning to center")
+            ReverseTrackedPath(path)
+            Sleep 120
 
-    UpdateStatus("Auto raid: moving forward (2s)")
-    moveDirection("w", 2000)
-    Sleep 1500
-
-    if (Room3BossCheckbox.Value) {
-        UpdateStatus("Room 3 Boss: waiting for room 4 unlock...")
-        WaitForSpecificRoom("4")
+            if (targetRoom < 10) {
+                UpdateStatus("Advancing to room " targetRoom)
+                moveDirection("w", 2000)
+                Sleep 150
+            }
+            currentRoom := targetRoom
+        }
+        else {
+            UpdateStatus("Unlock timeout in room " currentRoom ", retrying clear")
+        }
     }
 
-    if (Room3BossCheckbox.Value) {
-        UpdateStatus("Room 3 Boss: starting sequence")
-        moveDirection("S", 100)
-        Sleep 150
-        moveDirection("d", 750)
-        Sleep 150
-        moveDirection("w", 500)
-        Sleep 150
-        SendEvent "{Click 363, 382}"
-        Sleep 150
-        moveDirection("s", 200)
-        Sleep 150
-        moveDirection("a", 3000)
-        Sleep 150
-        SendEvent "{e}"
-        Sleep 150
-        moveDirection("a", 2500)
-        Sleep 2000
-        moveDirection("d", 3500)
-        UpdateStatus("Room 3 Boss: sequence done")
+    if RaidRunning
+        UpdateStatus("Reached room 10")
+}
+
+ClearRoomAndTrackPath(targetRoom, &path, &posX, &posY, maxClearMs := 90000) {
+    global RaidRunning
+
+    startedAt := A_TickCount
+    while RaidRunning && (A_TickCount - startedAt < maxClearMs) {
+        foundRoom := DetectUnlockedRoomPopup()
+        if (foundRoom && foundRoom = targetRoom)
+            return true
+
+        step := PickRoomStep(posX, posY)
+        if !IsObject(step)
+            step := {dir: "s", dur: 180}
+
+        if PerformTrackedStep(step.dir, step.dur, targetRoom, &path, &posX, &posY)
+            return true
+
+        Sleep 60
     }
 
-    UpdateStatus("Moving forward (2.5s)...")
-    moveDirection("w", 1500)
-    Sleep 150
-    moveDirection("a", 100)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+    return false
+}
 
-    UpdateStatus("Moving forward (2s + D 200ms)...")
-    moveDirection("w", 2000)
-    Sleep 150
-    moveDirection("d", 200)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+PerformTrackedStep(dir, durationMs, targetRoom, &path, &posX, &posY) {
+    global RaidRunning
 
-    UpdateStatus("Moving (A 250ms, W 3.25s)...")
-    moveDirection("a", 250)
-    Sleep 150
-    moveDirection("w", 2250)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+    remaining := durationMs
+    chunkMs := 120
 
-    UpdateStatus("Moving forward (2s + D 200ms)...")
-    moveDirection("w", 2000)
-    Sleep 150
-    moveDirection("d", 200)
-    UpdateStatus("Waiting for room unlock...")
-    WaitForRoomUnlock()
-    Sleep 1000
+    while (remaining > 0) {
+        if !RaidRunning
+            return false
 
-    UpdateStatus("Moving (A 250ms, W 3.25s)...")
-    moveDirection("a", 250)
-    Sleep 150
-    moveDirection("w", 3250)
+        partMs := Min(chunkMs, remaining)
+        moveDirection(dir, partMs)
+        path.Push({dir: dir, dur: partMs})
+        UpdateVirtualPosition(dir, partMs, &posX, &posY)
 
-    if (Room9BossCheckbox.Value) {
-        UpdateStatus("Room 9 Boss: starting sequence")
-        moveDirection("s", 150)
-        Sleep 150
-        moveDirection("d", 300)
-        Sleep 150
-        SendEvent "{Click 431, 276}"
-        UpdateStatus("Room 9 Boss: sequence done")
+        foundRoom := DetectUnlockedRoomPopup()
+        if (foundRoom && foundRoom = targetRoom)
+            return true
+
+        remaining -= partMs
+        Sleep 15
     }
 
-    UpdateStatus("Auto raid movement complete, monitoring...")
+    return false
+}
+
+PickRoomStep(posX, posY, maxFromCenter := 2000) {
+    candidates := []
+
+    dur := Random(220, 700)
+
+    if (posY + dur <= maxFromCenter)
+        candidates.Push({dir: "w", dur: dur, weight: 1})
+    if (posY - dur >= -maxFromCenter)
+        candidates.Push({dir: "s", dur: dur, weight: 1})
+    if (posX + dur <= maxFromCenter)
+        candidates.Push({dir: "d", dur: dur, weight: 1})
+    if (posX - dur >= -maxFromCenter)
+        candidates.Push({dir: "a", dur: dur, weight: 1})
+
+    if (posX > 1000)
+        candidates.Push({dir: "a", dur: Random(250, 550), weight: 3})
+    if (posX < -1000)
+        candidates.Push({dir: "d", dur: Random(250, 550), weight: 3})
+    if (posY > 1000)
+        candidates.Push({dir: "s", dur: Random(250, 550), weight: 3})
+    if (posY < -1000)
+        candidates.Push({dir: "w", dur: Random(250, 550), weight: 3})
+
+    if (candidates.Length = 0)
+        return false
+
+    weighted := []
+    for _, cand in candidates {
+        repeatCount := cand.HasOwnProp("weight") ? cand.weight : 1
+        Loop repeatCount
+            weighted.Push({dir: cand.dir, dur: cand.dur})
+    }
+
+    return weighted[Random(1, weighted.Length)]
+}
+
+UpdateVirtualPosition(dir, durationMs, &posX, &posY) {
+    if (dir = "w")
+        posY += durationMs
+    else if (dir = "s")
+        posY -= durationMs
+    else if (dir = "d")
+        posX += durationMs
+    else if (dir = "a")
+        posX -= durationMs
+}
+
+ReverseTrackedPath(path) {
+    global RaidRunning
+
+    loop path.Length {
+        if !RaidRunning
+            return
+
+        idx := path.Length - A_Index + 1
+        step := path[idx]
+        moveDirection(OppositeDir(step.dir), step.dur)
+        Sleep 10
+    }
+}
+
+OppositeDir(dir) {
+    if (dir = "w")
+        return "s"
+    if (dir = "s")
+        return "w"
+    if (dir = "a")
+        return "d"
+    if (dir = "d")
+        return "a"
+    return dir
 }
 
 WaitForDrasticColorChange(threshold := 30, maxSeconds := 60, sensitivity := 40) {
@@ -290,12 +350,14 @@ StartRaidLoop() {
 }
 
 updateStatus(message, addToLog := true) {
-    global statusLabel
+    global statusLabel, statusDetailLabel
     defaultTitle := (message = "") ? "Roblox" : "Roblox: "
     try WinSetTitle(defaultTitle message, "ahk_exe RobloxPlayerBeta.exe")
     try {
         if statusLabel
-            statusLabel.Value := (message = "" ? "Idle" : message)
+            statusLabel.Value := "• " (message = "" ? "Idle" : message)
+        if statusDetailLabel
+            statusDetailLabel.Value := ">>> " (message = "" ? "READY" : StrUpper(message))
     }
 }
 
@@ -321,6 +383,7 @@ resizeRobloxWindow() {
     WinRestore windowHandle
     WinMove , , A_ScreenWidth, 600, windowHandle
     WinMove , , 800, 600, windowHandle 
+    try PositionAuxiliaryGuis()
     updateStatus("")
 }
 
